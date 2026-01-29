@@ -3,8 +3,7 @@ DEFINE_BASECLASS("gamemode_sandbox")
 local grad = Material("vgui/gradient-u")
 local logo = Material("vgui/gp_logo")
 
-local roundedBG_ns = Color(57, 0, 81, 110)
-local roundedBG = roundedBG_ns
+local roundedBG = Color(57, 0, 81, 200)
 
 local plyPnlBorder = Color(29, 0, 43)
 local plyPnlCol = Color(170, 0, 255)
@@ -12,16 +11,10 @@ local plyPnlHighlight = Color(255, 0, 0)
 
 local btnHover = Color(64, 0, 92)
 
-local tex_corner8	= surface.GetTextureID("gui/inv_corner8")
-local tex_corner16	= surface.GetTextureID("gui/inv_corner16")
-local tex_corner32	= surface.GetTextureID("gui/inv_corner32")
-local tex_corner64	= surface.GetTextureID("gui/inv_corner64")
-local tex_corner512	= surface.GetTextureID("gui/inv_corner512")
-
-SHADERS = GetConVar("mat_dxlevel"):GetInt() >= 90
-
-local RNDX = SHADERS and include("vgui/rndx.lua")
-if SHADERS then roundedBG = Color(57, 0, 81, 75) end
+-- Simple rounded rectangle function using draw library
+local function DrawRoundedBox(radius, x, y, w, h, color)
+	draw.RoundedBox(radius, x, y, w, h, color)
+end
 
 local function DrawMenu()
 	local scrw, scrh = ScrW(), ScrH()
@@ -35,39 +28,16 @@ local function DrawMenu()
 	local w, h = scrw * 0.95, scrh * 0.95
 
 	-- border
-	surface.SetDrawColor(roundedBG_ns.r, roundedBG_ns.g, roundedBG_ns.b, roundedBG_ns.a)
+	surface.SetDrawColor(roundedBG.r, roundedBG.g, roundedBG.b, 255)
 	surface.DrawRect(0, 0, x, scrh)
 	surface.DrawRect(x, h, scrw, y)
 	surface.DrawRect(x, 0, scrw, y)
 	surface.DrawRect(w, y, x, scrh - (y * 2))
 
-	-- border corners
-	local cornerRad = scrh * 0.1
-
-	if SHADERS then
-		RNDX.Draw(-cornerRad, x, y, w - x, h - y, roundedBG, RNDX.SHAPE_FIGMA)
-	else
-		local tex
-		if cornerRad > 64 then
-			tex = tex_corner512
-		elseif cornerRad > 32 then
-			tex = tex_corner64
-		elseif cornerRad > 16 then
-			tex = tex_corner32
-		elseif cornerRad > 8 then
-			tex = tex_corner16 -- this guy is playing on an atari 2600
-		else
-			tex = tex_corner8 -- this guy is playing on a dreamcast vmu
-		end
-
-		surface.SetTexture(tex)
-		surface.DrawTexturedRectUV(x, y, cornerRad, cornerRad, 0, 0, 1, 1) -- top left
-		surface.DrawTexturedRectUV(x, h - cornerRad, cornerRad, cornerRad, 0, 1, 1, 0) -- bottom left
-		surface.DrawTexturedRectUV(w - cornerRad, y, cornerRad, cornerRad, 1, 0, 0, 1) -- top right
-		surface.DrawTexturedRectUV(w - cornerRad, h - cornerRad, cornerRad, cornerRad, 1, 1, 0, 0) -- bottom right
-	end
+	-- main background area with rounded corners
+	local cornerRad = scrh * 0.05
+	DrawRoundedBox(cornerRad, x, y, w - x, h - y, roundedBG)
 end
-
 
 local function DrawLobbyScreen()
 	local scrw, scrh = ScrW(), ScrH()
@@ -103,7 +73,9 @@ function GM:CreateMenu(customdraw)
 	local scrw, scrh = ScrW(), ScrH()
 	pnl:SetSize(scrw, scrh)
 
-	local function paint()
+	pnl.Paint = function(s, w, h)
+		surface.SetDrawColor(255, 255, 255, 255)
+
 		DrawMenu()
 
 		if customdraw then
@@ -114,18 +86,6 @@ function GM:CreateMenu(customdraw)
 		for i = 1, #children do
 			children[i]:PaintManual()
 		end
-	end
-
-	pnl.Paint = function(s, w, h)
-		surface.SetDrawColor(255, 255, 255, 255)
-
-		if self.MenuBarHeight == 1 then return paint() end
-
-		EZMASK.DrawWithMask(function()
-			local y = scrh * (1 - self.MenuBarHeight)
-
-			surface.DrawRect(0, y, scrw, scrh - y + 1)
-		end, paint)
 	end
 end
 
@@ -162,51 +122,24 @@ function GM:CreatePlayerPill(ply)
 	slotPnl:SetSize(scrw * 0.2, scrh * 0.05)
 	slotPnl:SetPaintedManually(true)
 
-	local pillPaint
-	if SHADERS then
-		pillPaint = function(s, w, h)
-			if !isReplay and !IsValid(ply) then
-				RNDX.Draw(plyPnlCorner, 0, 0, w, h, plyPnlBorder, RNDX.SHAPE_CIRCLE)
-
-				if IsValid(slotPnl.Avatar) then
-					slotPnl.Avatar:Remove()
-				end
-
-				return false
-			end
-
-			local off = w * 0.01
-
-			local col = s.Highlighted and plyPnlHighlight or plyPnlCol
-			RNDX.Draw(plyPnlCorner, 0, 0, w, h, col, RNDX.SHAPE_CIRCLE)
-			RNDX.DrawOutlined(plyPnlCorner, 0, 0, w, h, plyPnlBorder, off, RNDX.SHAPE_CIRCLE)
-
-			return true
-		end
-	else
-		pillPaint = function(s, w, h)
-			draw.RoundedBox(plyPnlCorner, 0, 0, w, h, plyPnlBorder)
-
-			if !isReplay and !IsValid(ply) then
-				if IsValid(slotPnl.Avatar) then
-					slotPnl.Avatar:Remove()
-				end
-
-				return false
-			end
-
-			local off = w * 0.01
-
-			local col = s.Highlighted and plyPnlHighlight or plyPnlCol
-			draw.RoundedBox(plyPnlCorner - off, off, off, w - (off * 2), h - (off * 2), col)
-
-			return true
-		end
-	end
-
 	slotPnl.Paint = function(s, w, h)
-		if !pillPaint(s, w, h) then return end
+		-- Draw border
+		DrawRoundedBox(plyPnlCorner, 0, 0, w, h, plyPnlBorder)
 
+		if !isReplay and !IsValid(ply) then
+			if IsValid(slotPnl.Avatar) then
+				slotPnl.Avatar:Remove()
+			end
+			return false
+		end
+
+		local off = w * 0.01
+
+		-- Draw fill color
+		local col = s.Highlighted and plyPnlHighlight or plyPnlCol
+		DrawRoundedBox(plyPnlCorner - off, off, off, w - (off * 2), h - (off * 2), col)
+
+		-- Draw text
 		surface.SetTextColor(255, 255, 255, 255)
 		surface.SetFont("GPTargetID")
 
@@ -215,6 +148,8 @@ function GM:CreatePlayerPill(ply)
 
 		surface.SetTextPos(w * 0.175, (h / 2) - (ty / 2))
 		surface.DrawText(txt)
+
+		return true
 	end
 
 	if isReplay or IsValid(ply) then
@@ -253,13 +188,12 @@ function GM:CreateMenuButton(txt, x, notButton)
 
 	start.Paint = function(s, w, h)
 		local col = (!notButton and s:IsHovered()) and btnHover or plyPnlBorder
-		if SHADERS then
-			RNDX.Draw(ssh16, 0, 0, w, h, col, RNDX.SHAPE_FIGMA)
+		DrawRoundedBox(ssh16, 0, 0, w, h, col)
 
-			RNDX.DrawMaterial(ssh16, 0, 0, w, h, btnHover, grad, RNDX.SHAPE_FIGMA)
-		else
-			draw.RoundedBox(ssh16, 0, 0, w, h, col)
-		end
+		-- Draw gradient overlay
+		surface.SetDrawColor(btnHover.r, btnHover.g, btnHover.b, 50)
+		surface.SetMaterial(grad)
+		surface.DrawTexturedRect(0, 0, w, h)
 
 		surface.SetTextColor(255, 255, 255)
 		surface.SetFont("GPBold")
@@ -302,12 +236,7 @@ local settingTypes = {
 
 		pnl.Paint = function(s, w, h)
 			local shouldGrey = data.greyed
-
-			if SHADERS then
-				RNDX.Draw(ScreenScaleH(5), 0, 0, w, h, shouldGrey and grey or color_white, RNDX.SHAPE_FIGMA)
-			else
-				draw.RoundedBox(ScreenScaleH(5), 0, 0, w, h, shouldGrey and grey or color_white)
-			end
+			DrawRoundedBox(ScreenScaleH(5), 0, 0, w, h, shouldGrey and grey or color_white)
 
 			if s.Highlighted then
 				surface.SetFont("GPBold")
@@ -356,12 +285,7 @@ local settingTypes = {
 
 		txt.Paint = function(s, w, h)
 			local shouldGrey = data.greyed
-
-			if SHADERS then
-				RNDX.Draw(ScreenScaleH(5), 0, 0, w, h, shouldGrey and grey or color_white, RNDX.SHAPE_FIGMA)
-			else
-				draw.RoundedBox(ScreenScaleH(5), 0, 0, w, h, shouldGrey and grey or color_white)
-			end
+			DrawRoundedBox(ScreenScaleH(5), 0, 0, w, h, shouldGrey and grey or color_white)
 
 			local text = s.Text
 			if text then
@@ -578,11 +502,7 @@ function GM:TwoSidedMenu(isReplay)
 	plyTitle:SetTall(ph * 0.11)
 	plyTitle:SetPaintedManually(true)
 	plyTitle.Paint = function(s, w, h)
-		if SHADERS then
-			RNDX.Draw(ssh16, 0, 0, w, h, roundedBG, RNDX.SHAPE_FIGMA + RNDX.NO_TR + RNDX.NO_BR + RNDX.NO_BL)
-		else
-			draw.RoundedBoxEx(ssh16, 0, 0, w, h, roundedBG, true, false, false, false)
-		end
+		DrawRoundedBox(ssh16, 0, 0, w, h, roundedBG)
 
 		-- player title
 		surface.SetTextColor(255, 255, 255, 255)
@@ -610,11 +530,7 @@ function GM:TwoSidedMenu(isReplay)
 	plyPnl:EnableVerticalScrollbar()
 	plyPnl:SetPaintedManually(true)
 	plyPnl.Paint = function(s, w, h)
-		if SHADERS then
-			RNDX.Draw(ssh16, 0, 0, w, h, roundedBG, RNDX.SHAPE_FIGMA + RNDX.NO_TR + RNDX.NO_BR + RNDX.NO_TL)
-		else
-			draw.RoundedBoxEx(ssh16, 0, 0, w, h, roundedBG, false, false, true, false)
-		end
+		DrawRoundedBox(ssh16, 0, 0, w, h, roundedBG)
 	end
 
 	local plys = isReplay and self.Playing or select(2, player.Iterator())
@@ -650,11 +566,7 @@ function GM:TwoSidedMenu(isReplay)
 	replayTitle:SetTall(ph * 0.11)
 	replayTitle:SetPaintedManually(true)
 	replayTitle.Paint = function(s, w, h)
-		if SHADERS then
-			RNDX.Draw(ssh16, 0, 0, w, h, roundedBG, RNDX.SHAPE_FIGMA + RNDX.NO_TL + RNDX.NO_BL + RNDX.NO_BR)
-		else
-			draw.RoundedBoxEx(ssh16, 0, 0, w, h, roundedBG, false, true, false, false)
-		end
+		DrawRoundedBox(ssh16, 0, 0, w, h, roundedBG)
 
 		-- settings title
 		surface.SetTextColor(255, 255, 255, 255)
@@ -676,11 +588,7 @@ function GM:TwoSidedMenu(isReplay)
 	replayPnl:SetPaintedManually(true)
 
 	replayPnl.Paint = function(s, w, h)
-		if SHADERS then
-			RNDX.Draw(ssh16, 0, 0, w, h, roundedBG, RNDX.SHAPE_FIGMA + RNDX.NO_TL + RNDX.NO_BL + RNDX.NO_TR)
-		else
-			draw.RoundedBoxEx(ssh16, 0, 0, w, h, roundedBG, false, false, false, true)
-		end
+		DrawRoundedBox(ssh16, 0, 0, w, h, roundedBG)
 	end
 
 	return plyPnl, replayPnl
