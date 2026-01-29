@@ -1,4 +1,3 @@
-
 AddCSLuaFile()
 DEFINE_BASECLASS( "player_sandbox" )
 
@@ -61,9 +60,11 @@ function PLAYER:Init()
 		local curRound = GetRound()
 		if curRound == 1 then return end
 
-		local recipient = GAMEMODE:GetRecipient(sid)
-
-		local buildData = GAMEMODE.RoundData[recipient][curRound - 1]
+		-- Fix: Read from player's own album
+		-- GetRound() returns current round, we want build from previous round
+		local buildData = GAMEMODE.RoundData[sid] and GAMEMODE.RoundData[sid][curRound - 1]
+		if !buildData then return end
+		
 		local build = buildData.data
 		if !build then return end
 
