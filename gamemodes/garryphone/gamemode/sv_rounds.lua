@@ -61,6 +61,16 @@ function GM:StartGame()
 
 	local plyCount = #self.Playing
 
+	-- Determine number of rounds to play
+	local numRoundsCvar = GetConVar("gp_numrounds")
+	local numRounds = numRoundsCvar and numRoundsCvar:GetInt() or 0
+	if numRounds <= 0 then
+		numRounds = plyCount -- Default to player count
+	end
+
+	-- Store the number of rounds for later use
+	self.TotalRounds = numRounds
+
 	local plyOrder = {}
 	for i = 1, plyCount do
 		plyOrder[i] = {}
@@ -79,8 +89,19 @@ function GM:StartGame()
 		local sid = self.Playing[i]
 		self.RoundData[sid] = {{author = sid}}
 
-		for j = 2, plyCount do
-			local authorsid = self.Playing[plyOrder[i][j - 1]]
+		-- Create round data for the configured number of rounds
+		for j = 2, numRounds do
+			-- Use modulo to wrap around if numRounds > plyCount
+			local orderIndex = ((j - 2) % plyCount) + 1
+			
+			-- For single player, just use the same player
+			local authorsid
+			if plyCount == 1 then
+				authorsid = sid
+			else
+				authorsid = self.Playing[plyOrder[i][orderIndex]]
+			end
+			
 			self.RoundData[sid][j] = {author = authorsid}
 
 			if !self.PlayerData[authorsid].order then
@@ -89,8 +110,11 @@ function GM:StartGame()
 
 			self.PlayerData[authorsid].order[j] = sid
 		end
+	end
 
-		self.BuildRounds[i] = orderFn(i, plyCount)
+	-- Determine which rounds are build rounds
+	for i = 1, numRounds do
+		self.BuildRounds[i] = orderFn(i, numRounds)
 	end
 
 	for _, ply in player.Iterator() do
@@ -237,10 +261,11 @@ local sid, data, authorID, author, authorName
 function GM:LoadNextRound()
 	local playing = self.Playing
 	local numplaying = #playing
+	local totalRounds = self.TotalRounds or numplaying
 
 	self.CurRound = self.CurRound + 1
 
-	if self.CurRound > numplaying then
+	if self.CurRound > totalRounds then
 		self.CurPly = self.CurPly + 1
 		self.CurRound = 1
 	end
@@ -334,12 +359,10 @@ local function ReceivePrompt(_, ply)
 	local gm = GAMEMODE
 
 	local prompt = net.ReadString()
-	local recipient = ply:SteamID64()
+	local plySID = ply:SteamID64()
 
 	local curRound = GetRound()
-	if curRound > 1 then
-		recipient = gm:GetRecipient(recipient)
-	end
+	local recipient = gm:GetRecipient(plySID, 1)
 
 	gm.RoundData[recipient][curRound].data = prompt
 
@@ -362,7 +385,9 @@ end
 
 function GM:NextRound()
 	local curRound = GetRound()
-	if curRound >= #self.Playing then
+	local totalRounds = self.TotalRounds or #self.Playing
+
+	if curRound >= totalRounds then
 		self:EndGame(curRound)
 	elseif self:IsBuildRound(curRound + 1) then
 		self:SwitchToBuild(curRound)

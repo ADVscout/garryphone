@@ -3,12 +3,13 @@ DeriveGamemode("sandbox")
 include("player_class/player_gphone.lua")
 
 GM.Name = "Garry Phone"
-GM.Author = "figardo"
+GM.Author = "figardo, Gamer"
 
 GM.Settings = {
-	{name = "InfiniteTime", cvar = "gp_infinitetime", type = "checkbox", default = 0, help = "How long are players given to type a prompt?", replicated = true, grey = {cvars = {2, 3}, val = true}},
+	{name = "InfiniteTime", cvar = "gp_infinitetime", type = "checkbox", default = 0, help = "Disable time limits?", replicated = true, grey = {cvars = {2, 3}, val = true}},
 	{name = "PromptTime", cvar = "gp_prompttime", type = "num", default = "30", help = "How long are players given to type a prompt?"},
 	{name = "BuildTime", cvar = "gp_buildtime", type = "num", default = "120", help = "How long are players given to build?"},
+	{name = "NumRounds", cvar = "gp_numrounds", type = "num", default = "0", help = "Number of rounds (0 = same as player count)", replicated = true},
 	{name = "LobbyPVP", cvar = "gp_lobbypvp", type = "checkbox", default = 0, help = "Should players be allowed to kill each other in the lobby?"}
 }
 
