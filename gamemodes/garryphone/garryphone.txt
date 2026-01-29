@@ -1,9 +1,9 @@
 "garryphone"
 {
 	"base"		"sandbox"
-	"title"		"Garry Phone"
+	"title"		"Garry Phone (DEV)"
 	"category"	"other"
 	"maps"		""
 	"menusystem"	"1"
-	"workshopid" "3412481462"
+	"workshopid" "3655816499"
 }

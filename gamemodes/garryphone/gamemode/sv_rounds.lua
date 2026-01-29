@@ -2,11 +2,19 @@ local game_mode = CreateConVar("gp_gamemode", "default")
 
 -- playin sudoku
 local function DoPlayerOrder(plyCount, plyOrder, row, col)
+	-- Special case: 2 players just swap them
+	-- (A proper Latin Square with no diagonal is impossible for n=2)
+	if plyCount == 2 then
+		plyOrder[1][1] = 2
+		plyOrder[2][1] = 1
+		return true
+	end
+
 	if row == plyCount + 1 then
 		return true
 	end
 
-	if col == plyCount then
+	if col == plyCount + 1 then
 		return DoPlayerOrder(plyCount, plyOrder, row + 1, 1)
 	end
 
@@ -87,27 +95,31 @@ function GM:StartGame()
 
 	for i = 1, plyCount do
 		local sid = self.Playing[i]
-		self.RoundData[sid] = {{author = sid}}
+		self.RoundData[sid] = {}
 
-		-- Create round data for the configured number of rounds
-		for j = 2, numRounds do
-			-- Use modulo to wrap around if numRounds > plyCount
-			local orderIndex = ((j - 2) % plyCount) + 1
-			
-			-- For single player, just use the same player
+		-- Create round data and order mapping for ALL rounds
+		for j = 1, numRounds do
+			-- Determine who writes to this player's album for this round
 			local authorsid
-			if plyCount == 1 then
+			if j == 1 then
+				-- For round 1, initialize with self (will be overwritten when prompt is submitted)
 				authorsid = sid
 			else
-				authorsid = self.Playing[plyOrder[i][orderIndex]]
+				-- Use the player order rotation
+				local orderIndex = ((j - 2) % plyCount) + 1
+				if plyCount == 1 then
+					authorsid = sid
+				else
+					authorsid = self.Playing[plyOrder[i][orderIndex]]
+				end
 			end
 			
 			self.RoundData[sid][j] = {author = authorsid}
 
+			-- Create the .order mapping so GetRecipient works
 			if !self.PlayerData[authorsid].order then
 				self.PlayerData[authorsid].order = {}
 			end
-
 			self.PlayerData[authorsid].order[j] = sid
 		end
 	end
@@ -154,9 +166,11 @@ function GM:SwitchToPrompt(curRound)
 				ply:Spawn()
 			end
 
-			local recipient = self:GetRecipient(sid, 1)
-
-			local buildData = self.RoundData[recipient][curRound]
+			-- Fix: Read from player's own album
+			-- curRound is the round we just finished, read the build from that round
+			local buildData = self.RoundData[sid] and self.RoundData[sid][curRound]
+			if !buildData then continue end
+			
 			local build = buildData.data
 			if !build or #build == 0 then continue end
 
@@ -211,9 +225,10 @@ function GM:SwitchToBuild(curRound)
 		ply:Spawn()
 		ply:SetBuildSpawn()
 
-		local recipient = self:GetRecipient(sid, 1)
-		local str = self.RoundData[recipient][curRound].data
-		if !str then str = "" end
+		-- Fix: Read from player's own album
+		-- curRound is the round we just finished, so read from that round
+		local roundData = self.RoundData[sid][curRound]
+		local str = roundData and roundData.data or ""
 
 		net.Start("GP_SendPrompt")
 			net.WriteString(str)
@@ -365,6 +380,7 @@ local function ReceivePrompt(_, ply)
 	local recipient = gm:GetRecipient(plySID, 1)
 
 	gm.RoundData[recipient][curRound].data = prompt
+	gm.RoundData[recipient][curRound].author = plySID  -- Fix: Update author to who actually wrote it
 
 	if !ply:GetReady() then
 		ply:SetReady(true)

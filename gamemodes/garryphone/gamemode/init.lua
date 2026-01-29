@@ -165,40 +165,40 @@ net.Receive("GP_ChangeSetting", ChangeSetting)
 -- MID-GAME
 local maxplybits = bitsRequired(game.MaxPlayers())
 local function Reconnected(_, ply)
-	-- anything that needs to be networked to our reconnected client goes here, otherwise see PLAYER:Init
-	local plydata = GAMEMODE.PlayerData
-	local mydata = plydata[ply:SteamID64()]
+    -- anything that needs to be networked to our reconnected client goes here, otherwise see PLAYER:Init
+    local plydata = GAMEMODE.PlayerData
+    local mydata = plydata[ply:SteamID64()]
 
-	local rs = GetRoundState()
-	if rs == STATE_LOBBY then return end
+    local rs = GetRoundState()
+    if rs == STATE_LOBBY then return end
 
-	if mydata and !table.IsEmpty(mydata) and rs == STATE_BUILD then
-		-- GM:SwitchToBuild
-		local recipient = GAMEMODE:GetRecipient(ply)
-		local str = GAMEMODE.RoundData[recipient][GetRound() - 1].data
-		if !str then str = "" end
+    if mydata and !table.IsEmpty(mydata) and rs == STATE_BUILD then
+        -- GM:SwitchToBuild
+        -- Fix: Read from player's own album
+        local roundData = GAMEMODE.RoundData[ply:SteamID64()][GetRound() - 1]
+        local str = roundData and roundData.data or ""
 
-		net.Start("GP_SendPrompt")
-			net.WriteString(str)
-		net.Send(ply)
-	end
+        net.Start("GP_SendPrompt")
+            net.WriteString(str)
+        net.Send(ply)
+    end
 
-	local plys = GAMEMODE.Playing
-	net.Start("GP_Reconnected")
-		net.WriteUInt(#plys, maxplybits)
-		for i = 1, #plys do
-			local sid = plys[i]
-			local data = plydata[sid]
+    local plys = GAMEMODE.Playing
+    net.Start("GP_Reconnected")
+        net.WriteUInt(#plys, maxplybits)
+        for i = 1, #plys do
+            local sid = plys[i]
+            local data = plydata[sid]
 
-			local isMe = data.ply == ply
-			net.WriteBool(isMe)
-			if isMe then continue end
+            local isMe = data.ply == ply
+            net.WriteBool(isMe)
+            if isMe then continue end
 
-			net.WritePlayer(data.ply)
-			net.WriteUInt64(sid)
-			net.WriteString(data.name)
-		end
-	net.Send(ply)
+            net.WritePlayer(data.ply)
+            net.WriteUInt64(sid)
+            net.WriteString(data.name)
+        end
+    net.Send(ply)
 end
 net.Receive("GP_Reconnected", Reconnected)
 
