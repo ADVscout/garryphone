@@ -3,10 +3,12 @@ local game_mode = CreateConVar("gp_gamemode", "default")
 -- playin sudoku
 local function DoPlayerOrder(plyCount, plyOrder, row, col)
 	-- Special case: 2 players just swap them
-	-- (A proper Latin Square with no diagonal is impossible for n=2)
+	-- Fill ALL columns with the same swap pattern since there's only one valid permutation
 	if plyCount == 2 then
-		plyOrder[1][1] = 2
-		plyOrder[2][1] = 1
+		for c = 1, plyCount do
+			plyOrder[1][c] = 2  -- Player 1 always writes for Player 2
+			plyOrder[2][c] = 1  -- Player 2 always writes for Player 1
+		end
 		return true
 	end
 
@@ -14,7 +16,8 @@ local function DoPlayerOrder(plyCount, plyOrder, row, col)
 		return true
 	end
 
-	if col == plyCount + 1 then
+	-- For 3+ players, only fill plyCount-1 columns to avoid diagonal
+	if col == plyCount then
 		return DoPlayerOrder(plyCount, plyOrder, row + 1, 1)
 	end
 
@@ -93,40 +96,64 @@ function GM:StartGame()
 	local orderFn = self.Gamemodes[gm] or self.Gamemodes["default"]
 	orderFn = orderFn.order
 
+	-- Determine which rounds are build rounds
+	for i = 1, numRounds do
+		self.BuildRounds[i] = orderFn(i, numRounds)
+	end
+
+	-- FIX: First, set up .order for all players based on plyOrder
+	for i = 1, plyCount do
+		local sid = self.Playing[i]
+		self.PlayerData[sid].order = {}
+		
+		local promptNum = 0
+		for j = 1, numRounds do
+			if !self.BuildRounds[j] then
+				promptNum = promptNum + 1
+				
+				-- Determine which album this player writes to in this prompt round
+				local maxCols = plyCount == 2 and plyCount or (plyCount - 1)
+				local orderIndex = ((promptNum - 1) % maxCols) + 1
+				
+				if plyCount == 1 then
+					self.PlayerData[sid].order[j] = sid
+				else
+					local albumIndex = plyOrder[i][orderIndex]
+					local albumSID = self.Playing[albumIndex]
+					self.PlayerData[sid].order[j] = albumSID
+				end
+			end
+		end
+	end
+
+	-- FIX: Then, set up RoundData based on .order
 	for i = 1, plyCount do
 		local sid = self.Playing[i]
 		self.RoundData[sid] = {}
 
-		-- Create round data and order mapping for ALL rounds
 		for j = 1, numRounds do
-			-- Determine who writes to this player's album for this round
+			local isBuildRound = self.BuildRounds[j]
+			
+			-- Determine who creates content for this album in this round
 			local authorsid
-			if j == 1 then
-				-- For round 1, initialize with self (will be overwritten when prompt is submitted)
+			if isBuildRound then
+				-- For build rounds, the album owner builds
 				authorsid = sid
 			else
-				-- Use the player order rotation
-				local orderIndex = ((j - 2) % plyCount) + 1
-				if plyCount == 1 then
-					authorsid = sid
-				else
-					authorsid = self.Playing[plyOrder[i][orderIndex]]
+				-- For prompt rounds, find who writes to this album by checking .order
+				authorsid = nil
+				for k = 1, plyCount do
+					local authorSID = self.Playing[k]
+					if self.PlayerData[authorSID].order[j] == sid then
+						authorsid = authorSID
+						break
+					end
 				end
+				authorsid = authorsid or sid  -- Fallback
 			end
 			
 			self.RoundData[sid][j] = {author = authorsid}
-
-			-- Create the .order mapping so GetRecipient works
-			if !self.PlayerData[authorsid].order then
-				self.PlayerData[authorsid].order = {}
-			end
-			self.PlayerData[authorsid].order[j] = sid
 		end
-	end
-
-	-- Determine which rounds are build rounds
-	for i = 1, numRounds do
-		self.BuildRounds[i] = orderFn(i, numRounds)
 	end
 
 	for _, ply in player.Iterator() do
@@ -377,10 +404,27 @@ local function ReceivePrompt(_, ply)
 	local plySID = ply:SteamID64()
 
 	local curRound = GetRound()
-	local recipient = gm:GetRecipient(plySID, 1)
+	
+	-- For prompt rounds, .order is indexed by the prompt round itself
+	local recipient = gm:GetRecipient(plySID, 0)
+	
+	-- Safety check: if recipient is nil, save to the player's own album
+	if !recipient then
+		if gm.RoundData[plySID] and gm.RoundData[plySID][curRound] then
+			gm.RoundData[plySID][curRound].data = prompt
+			gm.RoundData[plySID][curRound].author = plySID
+		end
+		
+		if !ply:GetReady() then
+			ply:SetReady(true)
+		end
+		return
+	end
 
-	gm.RoundData[recipient][curRound].data = prompt
-	gm.RoundData[recipient][curRound].author = plySID  -- Fix: Update author to who actually wrote it
+	if gm.RoundData[recipient] and gm.RoundData[recipient][curRound] then
+		gm.RoundData[recipient][curRound].data = prompt
+		gm.RoundData[recipient][curRound].author = plySID  -- Fix: Update author to who actually wrote it
+	end
 
 	if !ply:GetReady() then
 		ply:SetReady(true)

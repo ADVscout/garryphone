@@ -72,8 +72,32 @@ if SERVER then
 			build.ang = self:EyeAngles()
 		end
 
-		local recipient = GAMEMODE:GetRecipient(self)
-
-		GAMEMODE.RoundData[recipient][round].data = build
+		-- FIX: For build rounds, save to own album instead of using GetRecipient
+		local sid = self:SteamID64()
+		local gm = GAMEMODE
+		
+		-- Check if this is a build round
+		local isBuildRound = gm:IsBuildRound(round)
+		
+		if isBuildRound then
+			-- Build rounds: save to own album
+			if gm.RoundData[sid] and gm.RoundData[sid][round] then
+				gm.RoundData[sid][round].data = build
+			end
+		else
+			-- Prompt rounds: save to recipient's album (only if GetRecipient succeeds)
+			local success, recipient = pcall(gm.GetRecipient, gm, self)
+			
+			if success and recipient then
+				if gm.RoundData[recipient] and gm.RoundData[recipient][round] then
+					gm.RoundData[recipient][round].data = build
+				end
+			else
+				-- Fallback: save to own album if GetRecipient fails
+				if gm.RoundData[sid] and gm.RoundData[sid][round] then
+					gm.RoundData[sid][round].data = build
+				end
+			end
+		end
 	end
 end

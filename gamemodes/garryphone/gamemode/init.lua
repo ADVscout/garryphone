@@ -122,7 +122,16 @@ function GM:GetRecipient(ply, roundoffset)
 	if isentity(ply) then ply = ply:SteamID64() end
 	roundoffset = roundoffset or 0
 
-	return self.PlayerData[ply].order[GetRound() + roundoffset]
+	local roundNum = GetRound() + roundoffset
+	if !self.PlayerData[ply] or !self.PlayerData[ply].order then
+		error("GM:GetRecipient invalid player data for " .. tostring(ply))
+	end
+	
+	if !self.PlayerData[ply].order[roundNum] then
+		error("GM:GetRecipient no recipient found for round " .. roundNum .. " (player: " .. tostring(ply) .. ")")
+	end
+
+	return self.PlayerData[ply].order[roundNum]
 end
 
 
@@ -173,10 +182,11 @@ local function Reconnected(_, ply)
     if rs == STATE_LOBBY then return end
 
     if mydata and !table.IsEmpty(mydata) and rs == STATE_BUILD then
-        -- GM:SwitchToBuild
-        -- Fix: Read from player's own album
-        local roundData = GAMEMODE.RoundData[ply:SteamID64()][GetRound() - 1]
-        local str = roundData and roundData.data or ""
+		-- GM:SwitchToBuild
+		-- Fix: Read from player's own album
+		local sid = ply:SteamID64()
+		local roundData = GAMEMODE.RoundData[sid] and GAMEMODE.RoundData[sid][GetRound()]
+		local str = roundData and roundData.data or ""
 
         net.Start("GP_SendPrompt")
             net.WriteString(str)

@@ -23,42 +23,53 @@ function GM:InitPostEntity()
 	self:CreateConVars()
 end
 
-local function GenerateFonts()
-	surface.CreateFont("GPTargetID", {
-		font = "Comic Sans MS",
-		size = ScreenScaleH(15),
-		outline = true,
-		extended = true
-	})
+if CLIENT then
+	local fontsCreated = false
 
-	surface.CreateFont("GPTextEntry", {
-		font = "Comic Sans MS",
-		size = ScreenScaleH(15),
-		extended = true
-	})
+	local function GenerateFonts()
+		if fontsCreated then return end
+		fontsCreated = true
 
-	surface.CreateFont("GPBoldSmall", {
-		font = "Comic Sans MS",
-		size = ScreenScaleH(15),
-		weight = 900,
-		extended = true
-	})
+		local baseSize = math.floor(ScrH() * 0.03) -- stable scale
 
-	surface.CreateFont("GPTitle", {
-		font = "Comic Sans MS",
-		size = ScreenScaleH(20),
-		outline = true,
-		extended = true
-	})
+		surface.CreateFont("GPTargetID", {
+			font = "Arial", -- EXISTS everywhere
+			size = baseSize,
+			outline = true,
+			extended = false
+		})
 
-	surface.CreateFont("GPBold", {
-		font = "Comic Sans MS",
-		size = ScreenScaleH(25),
-		weight = 900,
-		extended = true
-	})
+		surface.CreateFont("GPTextEntry", {
+			font = "Arial",
+			size = baseSize,
+			extended = false
+		})
+
+		surface.CreateFont("GPBoldSmall", {
+			font = "Arial",
+			size = baseSize,
+			weight = 800,
+			extended = false
+		})
+
+		surface.CreateFont("GPTitle", {
+			font = "Arial",
+			size = math.floor(baseSize * 1.3),
+			outline = true,
+			extended = false
+		})
+
+		surface.CreateFont("GPBold", {
+			font = "Arial",
+			size = math.floor(baseSize * 1.6),
+			weight = 800,
+			extended = false
+		})
+	end
+
+	hook.Add("Initialize", "GP_GenerateFonts", GenerateFonts)
 end
-GenerateFonts()
+
 
 function GM:OnScreenSizeChanged()
 	GenerateFonts()

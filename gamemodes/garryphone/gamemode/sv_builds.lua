@@ -11,17 +11,26 @@ end
 
 function GM:BuildsToDupes(round)
 	-- convert build data into a format that can be respawned
-	for _, tbl in pairs(self.RoundData) do
-		local build = tbl[round - 1].data
+	-- round is the prompt round we just finished
+	-- We want to convert builds from the previous build round (round - 1)
+	local buildRound = round - 1
+	
+	if buildRound < 1 then return end  -- No previous build to convert
+	
+	for sid, tbl in pairs(self.RoundData) do
+		-- Safety check: make sure the round exists
+		if !tbl or !tbl[buildRound] then continue end
+		
+		local build = tbl[buildRound].data
 		if !build or !istable(build) then continue end
 
 		local newBuild = table.Copy(build)
 		newBuild.pos = nil
 		newBuild.ang = nil
 
-		tbl[round - 1].data = duplicator.CopyEnts(newBuild)
-		tbl[round - 1].data.pos = build.pos
-		tbl[round - 1].data.ang = build.ang
+		tbl[buildRound].data = duplicator.CopyEnts(newBuild)
+		tbl[buildRound].data.pos = build.pos
+		tbl[buildRound].data.ang = build.ang
 	end
 end
 
