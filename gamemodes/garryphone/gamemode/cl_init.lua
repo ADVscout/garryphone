@@ -26,6 +26,7 @@ end
 if CLIENT then
 	local fontsCreated = false
 
+	-- FIX: Declare GenerateFonts as local before it's used
 	local function GenerateFonts()
 		if fontsCreated then return end
 		fontsCreated = true
@@ -68,11 +69,11 @@ if CLIENT then
 	end
 
 	hook.Add("Initialize", "GP_GenerateFonts", GenerateFonts)
-end
 
-
-function GM:OnScreenSizeChanged()
-	GenerateFonts()
+	-- FIX: Use the local function reference
+	function GM:OnScreenSizeChanged()
+		GenerateFonts()
+	end
 end
 
 local online = Sound("friends/friend_online.wav")
@@ -90,9 +91,22 @@ local stateSwitchFuncs = {
 		gm:OnSpawnMenuClose()
 
 		gm.MenuLock = true
+		
+		-- FIX: Explicitly close menu state before killing the screen
+		-- This ensures the lobby menu is properly closed for non-host players
+		local isFirstPrompt = GetRound() == 1
+		if !isFirstPrompt then
+			gm.MenuOpen = false
+		end
+		
 		gm:KillMenuScreen(true)
 
 		gm:CreatePromptScreen()
+		
+		-- For round 1, the prompt screen needs the menu open
+		if isFirstPrompt then
+			gm.MenuOpen = true
+		end
 
 		return online
 	end,
@@ -111,7 +125,7 @@ local stateSwitchFuncs = {
 	end,
 	[STATE_POST] = function(gm)
 		gm.MenuLock = false
-		gm.MenuOpen = false
+		gm.MenuOpen = false  -- FIX: Always start with menu closed
 		gm:KillMenuScreen(true)
 
 		gm.PostText = language.GetPhrase("GarryPhone.GameOver")

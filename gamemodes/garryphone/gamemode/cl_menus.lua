@@ -489,6 +489,7 @@ function GM:TwoSidedMenu(isReplay)
 			if GetRoundState() == STATE_POST then return end
 
 			GAMEMODE.MenuOpen = false
+			GAMEMODE:KillMenuScreen()
 		end
 	end
 
@@ -632,7 +633,11 @@ local menuFuncs = {
 		return true
 	end,
 	[STATE_POST] = function(gm)
-		if !LocalPlayer():HasAuthority() then return BaseClass.ScoreboardShow(gm) end
+		-- FIX: Non-host players should not be able to toggle the menu
+		-- The host controls it and broadcasts to everyone
+		if !LocalPlayer():HasAuthority() then 
+			return false  -- Don't show default scoreboard either
+		end
 
 		gm.MenuOpen = !gm.MenuOpen
 

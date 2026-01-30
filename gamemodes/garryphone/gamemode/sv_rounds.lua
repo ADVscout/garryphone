@@ -186,20 +186,30 @@ function GM:SwitchToPrompt(curRound)
 	if curRound > 1 then
 		self:SaveBuilds(curRound, false)
 
+		-- FIX: Show each player the build from the album they're about to describe
+		local nextRound = curRound + 1
+		
 		for sid, data in pairs(self.PlayerData) do
 			local ply = data.ply
 			local validPly = IsValid(ply)
+			
 			if validPly then
 				ply:Spawn()
 			end
 
-			-- Fix: Read from player's own album
-			-- curRound is the round we just finished, read the build from that round
-			local buildData = self.RoundData[sid] and self.RoundData[sid][curRound]
+			-- Find which album this player will be working on in the next round
+			local targetAlbum = self.PlayerData[sid].order and self.PlayerData[sid].order[nextRound]
+			if !targetAlbum then
+				-- Fallback to own album if no target (shouldn't happen)
+				targetAlbum = sid
+			end
+
+			-- Show them the build from that album's previous round
+			local buildData = self.RoundData[targetAlbum] and self.RoundData[targetAlbum][curRound]
 			if !buildData then continue end
 			
 			local build = buildData.data
-			if !build or #build == 0 then continue end
+			if !build or !istable(build) or #build == 0 then continue end
 
 			local builder = self.PlayerData[buildData.author].ply
 
@@ -207,7 +217,9 @@ function GM:SwitchToPrompt(curRound)
 				local ent = build[i]
 
 				-- hide build from the builder
-				RecursiveSetPreventTransmit(ent, builder, true)
+				if IsValid(builder) then
+					RecursiveSetPreventTransmit(ent, builder, true)
+				end
 
 				if validPly then
 					-- show build to the guesser
@@ -252,8 +264,7 @@ function GM:SwitchToBuild(curRound)
 		ply:Spawn()
 		ply:SetBuildSpawn()
 
-		-- Fix: Read from player's own album
-		-- curRound is the round we just finished, so read from that round
+		-- Read the prompt from the player's own album
 		local roundData = self.RoundData[sid][curRound]
 		local str = roundData and roundData.data or ""
 
@@ -405,25 +416,17 @@ local function ReceivePrompt(_, ply)
 
 	local curRound = GetRound()
 	
-	-- For prompt rounds, .order is indexed by the prompt round itself
-	local recipient = gm:GetRecipient(plySID, 0)
+	-- For prompt rounds, .order tells us which album this player writes to
+	local recipient = gm.PlayerData[plySID].order and gm.PlayerData[plySID].order[curRound]
 	
 	-- Safety check: if recipient is nil, save to the player's own album
 	if !recipient then
-		if gm.RoundData[plySID] and gm.RoundData[plySID][curRound] then
-			gm.RoundData[plySID][curRound].data = prompt
-			gm.RoundData[plySID][curRound].author = plySID
-		end
-		
-		if !ply:GetReady() then
-			ply:SetReady(true)
-		end
-		return
+		recipient = plySID
 	end
 
 	if gm.RoundData[recipient] and gm.RoundData[recipient][curRound] then
 		gm.RoundData[recipient][curRound].data = prompt
-		gm.RoundData[recipient][curRound].author = plySID  -- Fix: Update author to who actually wrote it
+		gm.RoundData[recipient][curRound].author = plySID
 	end
 
 	if !ply:GetReady() then
